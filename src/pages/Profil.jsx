@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Container,
   Row,
@@ -27,38 +27,249 @@ import {
 } from "react-icons/fi";
 
 import { useNavigate } from "react-router-dom";
+import api from "../api";
 
 function Profil() {
   const navigate = useNavigate();
 
   const [editMode, setEditMode] = useState(false);
-  const [showPassword, setShowPassword] =
-    useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const [nama, setNama] = useState("Pengguna Rincian");
-  const [email, setEmail] =
-    useState("pengguna@rincian.app");
+  const [nama, setNama] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  const [password, setPassword] =
-    useState("12345678");
+  const [tanggalBergabung, setTanggalBergabung] =
+    useState("Agustus 2026");
 
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSave = () => {
+  const getUser = () => {
+    try {
+      return JSON.parse(
+        localStorage.getItem("rincianUser") || "null"
+      );
+    } catch {
+      return null;
+    }
+  };
+
+  const formatTanggalBergabung = (tanggal) => {
+    if (!tanggal) {
+      return "Agustus 2026";
+    }
+
+    try {
+      const date = new Date(tanggal);
+
+      if (Number.isNaN(date.getTime())) {
+        return "Agustus 2026";
+      }
+
+      return date.toLocaleDateString("id-ID", {
+        month: "long",
+        year: "numeric",
+      });
+    } catch {
+      return "Agustus 2026";
+    }
+  };
+
+  const loadProfile = async () => {
+    const user = getUser();
+
+    if (!user || !user.id) {
+      setLoading(false);
+      navigate("/login", {
+        replace: true,
+      });
+      return;
+    }
+
+    try {
+      setError("");
+
+      const response = await api.get(
+        "/api/profile",
+        {
+          headers: {
+            "X-User-ID": String(user.id),
+          },
+        }
+      );
+
+      const profile = response.data;
+
+      setNama(profile.name || "");
+      setEmail(profile.email || "");
+
+      setTanggalBergabung(
+        formatTanggalBergabung(
+          profile.created_at
+        )
+      );
+
+      const updatedUser = {
+        ...user,
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+      };
+
+      localStorage.setItem(
+        "rincianUser",
+        JSON.stringify(updatedUser)
+      );
+    } catch (err) {
+      console.error(
+        "Gagal mengambil profil:",
+        err
+      );
+
+      setError(
+        err.response?.data?.detail ||
+          "Gagal mengambil data profil."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+
+    const user = getUser();
+
+    if (!user || !user.id) {
+      navigate("/login", {
+        replace: true,
+      });
+      return;
+    }
+
+    if (!nama.trim()) {
+      setError("Nama wajib diisi.");
+      return;
+    }
+
+    if (!email.trim()) {
+      setError("Email wajib diisi.");
+      return;
+    }
+
+    if (password && password.length < 8) {
+      setError(
+        "Password minimal 8 karakter."
+      );
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+
+      const response = await api.put(
+        "/api/profile",
+        {
+          name: nama.trim(),
+          email: email.trim(),
+          password: password || null,
+        },
+        {
+          headers: {
+            "X-User-ID": String(user.id),
+          },
+        }
+      );
+
+      const updatedProfile =
+        response.data.user;
+
+      setNama(
+        updatedProfile.name || ""
+      );
+
+      setEmail(
+        updatedProfile.email || ""
+      );
+
+      setPassword("");
+      setShowPassword(false);
+      setEditMode(false);
+
+      const updatedUser = {
+        ...user,
+        id: updatedProfile.id,
+        name: updatedProfile.name,
+        email: updatedProfile.email,
+      };
+
+      localStorage.setItem(
+        "rincianUser",
+        JSON.stringify(updatedUser)
+      );
+
+      setSaved(true);
+
+      setTimeout(() => {
+        setSaved(false);
+      }, 2500);
+    } catch (err) {
+      console.error(
+        "Gagal menyimpan profil:",
+        err
+      );
+
+      setError(
+        err.response?.data?.detail ||
+          "Gagal menyimpan perubahan profil."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    const user = getUser();
+
+    if (user) {
+      setNama(user.name || "");
+      setEmail(user.email || "");
+    }
+
+    setPassword("");
+    setShowPassword(false);
+    setError("");
     setEditMode(false);
-    setSaved(true);
-
-    setTimeout(() => {
-      setSaved(false);
-    }, 2500);
   };
 
   const handleLogout = () => {
     localStorage.removeItem("rincianLogin");
+    localStorage.removeItem("rincianUser");
+
     navigate("/login", {
       replace: true,
     });
   };
+
+  if (loading) {
+    return (
+      <div className="profile-page">
+        <Container className="py-5">
+          <div className="text-center">
+            Memuat profil...
+          </div>
+        </Container>
+      </div>
+    );
+  }
 
   return (
     <div className="profile-page">
@@ -100,6 +311,7 @@ function Profil() {
               }
             >
               <FiCreditCard />
+
               <span className="d-none d-sm-inline">
                 Dashboard
               </span>
@@ -142,17 +354,17 @@ function Profil() {
               <Card.Body>
 
                 <div className="profile-avatar-large">
-                  {nama
+                  {(nama || "P")
                     .charAt(0)
                     .toUpperCase()}
                 </div>
 
                 <h4>
-                  {nama}
+                  {nama || "Pengguna Rincian"}
                 </h4>
 
                 <p>
-                  {email}
+                  {email || "-"}
                 </p>
 
                 <Badge className="active-badge">
@@ -173,7 +385,7 @@ function Profil() {
                     </small>
 
                     <strong>
-                      Agustus 2026
+                      {tanggalBergabung}
                     </strong>
                   </div>
                 </div>
@@ -251,11 +463,13 @@ function Profil() {
                     <Button
                       variant="light"
                       className="edit-profile-button"
-                      onClick={() =>
-                        setEditMode(true)
-                      }
+                      onClick={() => {
+                        setError("");
+                        setEditMode(true);
+                      }}
                     >
                       <FiEdit2 />
+
                       <span className="d-none d-sm-inline">
                         Edit Profil
                       </span>
@@ -271,7 +485,13 @@ function Profil() {
                   </div>
                 )}
 
-                <Form>
+                {error && (
+                  <div className="alert alert-danger">
+                    {error}
+                  </div>
+                )}
+
+                <Form onSubmit={handleSave}>
 
                   {/* NAMA */}
                   <Form.Group className="mb-4">
@@ -350,6 +570,11 @@ function Profil() {
                         }
                         value={password}
                         disabled={!editMode}
+                        placeholder={
+                          editMode
+                            ? "Kosongkan jika tidak ingin mengubah"
+                            : ""
+                        }
                         onChange={(e) =>
                           setPassword(
                             e.target.value
@@ -378,8 +603,8 @@ function Profil() {
                     </InputGroup>
 
                     <Form.Text>
-                      Gunakan password yang mudah
-                      kamu ingat tetapi sulit ditebak.
+                      Kosongkan password jika tidak
+                      ingin mengubah password.
                     </Form.Text>
 
                   </Form.Group>
@@ -390,19 +615,23 @@ function Profil() {
 
                       <Button
                         variant="light"
-                        onClick={() =>
-                          setEditMode(false)
-                        }
+                        type="button"
+                        onClick={handleCancel}
+                        disabled={saving}
                       >
                         Batal
                       </Button>
 
                       <Button
                         className="save-profile-button"
-                        onClick={handleSave}
+                        type="submit"
+                        disabled={saving}
                       >
                         <FiSave />
-                        Simpan Perubahan
+
+                        {saving
+                          ? " Menyimpan..."
+                          : " Simpan Perubahan"}
                       </Button>
 
                     </div>
@@ -429,8 +658,8 @@ function Profil() {
                   </h6>
 
                   <p>
-                    Data akunmu akan disimpan dengan
-                    aman ketika backend sudah terhubung.
+                    Data akunmu disimpan dengan
+                    password yang sudah diamankan.
                   </p>
                 </div>
 

@@ -57,6 +57,16 @@ class LoginRequest(BaseModel):
 
 
 # =========================
+# SCHEMA PROFILE
+# =========================
+
+class ProfileUpdateRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: Optional[str] = None
+
+
+# =========================
 # SCHEMA PENGELUARAN
 # =========================
 
@@ -220,6 +230,197 @@ def login(
 
 
 # =========================================================
+# PROFILE
+# =========================================================
+
+
+# =========================
+# GET PROFILE
+# =========================
+
+@app.get("/api/profile")
+def get_profile(
+    x_user_id: Optional[str] = Header(
+        default=None,
+        alias="X-User-ID"
+    ),
+    db: Session = Depends(get_db)
+):
+    if not x_user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="User ID tidak ditemukan."
+        )
+
+    try:
+        user_id = int(x_user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="User ID tidak valid."
+        )
+
+    user = (
+        db.query(models.User)
+        .filter(models.User.id == user_id)
+        .first()
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User tidak ditemukan."
+        )
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "created_at": user.created_at,
+    }
+
+
+# =========================
+# PUT PROFILE
+# =========================
+
+@app.put("/api/profile")
+def update_profile(
+    data: ProfileUpdateRequest,
+    x_user_id: Optional[str] = Header(
+        default=None,
+        alias="X-User-ID"
+    ),
+    db: Session = Depends(get_db)
+):
+    if not x_user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="User ID tidak ditemukan."
+        )
+
+    try:
+        user_id = int(x_user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="User ID tidak valid."
+        )
+
+    user = (
+        db.query(models.User)
+        .filter(models.User.id == user_id)
+        .first()
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User tidak ditemukan."
+        )
+
+    name = data.name.strip()
+    email = data.email.strip().lower()
+
+    if not name:
+        raise HTTPException(
+            status_code=400,
+            detail="Nama wajib diisi."
+        )
+
+    if data.password is not None:
+        password = data.password.strip()
+
+        if password and len(password) < 8:
+            raise HTTPException(
+                status_code=400,
+                detail="Password minimal 8 karakter."
+            )
+
+    existing_email = (
+        db.query(models.User)
+        .filter(
+            models.User.email == email,
+            models.User.id != user_id
+        )
+        .first()
+    )
+
+    if existing_email:
+        raise HTTPException(
+            status_code=400,
+            detail="Email sudah digunakan akun lain."
+        )
+
+    user.name = name
+    user.email = email
+
+    if data.password is not None:
+        password = data.password.strip()
+
+        if password:
+            user.password = hash_password(password)
+
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "message": "Profil berhasil diperbarui.",
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email
+        }
+    }
+
+
+# =========================
+# DELETE PROFILE / AKUN
+# =========================
+
+@app.delete("/api/profile")
+def delete_profile(
+    x_user_id: Optional[str] = Header(
+        default=None,
+        alias="X-User-ID"
+    ),
+    db: Session = Depends(get_db)
+):
+    if not x_user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="User ID tidak ditemukan."
+        )
+
+    try:
+        user_id = int(x_user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="User ID tidak valid."
+        )
+
+    user = (
+        db.query(models.User)
+        .filter(models.User.id == user_id)
+        .first()
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User tidak ditemukan."
+        )
+
+    db.delete(user)
+    db.commit()
+
+    return {
+        "message": "Akun berhasil dihapus."
+    }
+
+
+# =========================================================
 # PENGELUARAN
 # =========================================================
 
@@ -242,13 +443,6 @@ def expense_response(expense):
 
 # =========================
 # GET PENGELUARAN
-# =========================
-# Endpoint yang dipakai Pengeluaran.jsx:
-#
-# GET /api/pengeluaran
-#
-# User ID dikirim dari FE melalui:
-# X-User-ID
 # =========================
 
 @app.get("/api/pengeluaran")
@@ -461,9 +655,6 @@ def delete_pengeluaran(
 
 # =========================================================
 # ENDPOINT LAMA
-# =========================================================
-# Tetap dipertahankan supaya tidak merusak kode lain
-# yang mungkin masih memakai /expenses/{user_id}
 # =========================================================
 
 @app.get("/expenses/{user_id}")
