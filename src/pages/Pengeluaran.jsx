@@ -389,7 +389,8 @@ function Pengeluaran() {
        * mengembalikan data, UI cukup menampilkan
        * "Tidak ada pengeluaran".
        */
-      setPengeluaran([]);
+      // Jangan menghapus data yang sudah tampil hanya karena GET gagal.
+      // Data terakhir di layar tetap dipertahankan.
     } finally {
       setLoading(false);
     }
@@ -710,11 +711,9 @@ function Pengeluaran() {
 
         resetForm();
 
-        /*
-         * Sinkronisasi ulang dengan backend.
-         */
-        await loadPengeluaran();
-
+        // Tidak perlu GET ulang di sini.
+        // Data di layar sudah diperbarui dari response PUT, sehingga
+        // kegagalan GET tidak akan membuat hasil edit menghilang.
         return;
       }
 
@@ -770,7 +769,7 @@ function Pengeluaran() {
             nama,
 
           nominal:
-            created.nominal ||
+            created.nominal ??
             nominal,
 
           kategori:
@@ -782,26 +781,39 @@ function Pengeluaran() {
             form.tanggal,
 
           catatan:
-            created.catatan ||
+            created.catatan ??
             form.catatan.trim(),
         };
 
         setPengeluaran(
-          (prev) => [
-            createdData,
-            ...prev,
-          ]
+          (prev) => {
+            const exists = prev.some(
+              (item) =>
+                Number(item.id) ===
+                Number(createdData.id)
+            );
+
+            if (exists) {
+              return prev.map((item) =>
+                Number(item.id) ===
+                Number(createdData.id)
+                  ? createdData
+                  : item
+              );
+            }
+
+            return [createdData, ...prev];
+          }
         );
+
+        resetForm();
+        return;
       }
 
+      // Jika POST berhasil tetapi backend tidak mengembalikan ID,
+      // ambil ulang data agar transaksi tetap memiliki ID database
+      // sehingga nantinya tombol Edit/Hapus tetap bisa digunakan.
       resetForm();
-
-      /*
-       * Ini penting:
-       * meskipun response POST tidak mengembalikan
-       * data lengkap, data tetap diambil ulang
-       * dari database.
-       */
       await loadPengeluaran();
     } catch (error) {
       console.error(
@@ -881,7 +893,8 @@ function Pengeluaran() {
           )
       );
 
-      await loadPengeluaran();
+      // Data di layar sudah dihapus secara lokal setelah DELETE berhasil.
+      // Tidak perlu GET ulang yang berpotensi gagal dan mengosongkan layar.
     } catch (error) {
       console.error(
         "Gagal menghapus pengeluaran:",
