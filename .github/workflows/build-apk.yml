@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build web
+      - name: Build frontend
         run: npm run build
 
       - name: Setup Java
@@ -32,15 +32,18 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Android
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Capacitor sync
+      - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Build APK
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
+      - name: Build Debug APK
         working-directory: android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
