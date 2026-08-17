@@ -35,9 +35,12 @@ import {
 import { GiForkKnifeSpoon } from "react-icons/gi";
 
 function Pengeluaran() {
-  const API_URL =
+  const API_URL = (
     import.meta.env.VITE_API_URL ||
-    "http://127.0.0.1:8000";
+    "https://indr.pythonanywhere.com"
+  )
+    .replace(/\/+$/, "")
+    .replace(/\/api$/, "");
 
   // ==========================================
   // USER
@@ -1965,6 +1968,52 @@ function Pengeluaran() {
         </Card>
       </Container>
 
+      <style>{`
+        .pengeluaran-modal-dialog {
+          width: calc(100% - 24px);
+          max-width: 560px;
+          margin: 72px auto 20px !important;
+        }
+
+        .pengeluaran-modal-content {
+          border: 0 !important;
+          border-radius: 18px !important;
+          overflow: hidden;
+          box-shadow: 0 18px 55px rgba(0, 0, 0, 0.18);
+        }
+
+        .pengeluaran-modal-dialog .modal-header {
+          padding: 20px 22px;
+        }
+
+        .pengeluaran-modal-dialog .modal-body {
+          padding: 20px 22px;
+        }
+
+        .pengeluaran-modal-dialog .modal-footer {
+          padding: 14px 22px 18px;
+        }
+
+        @media (max-width: 576px) {
+          .pengeluaran-modal-dialog {
+            width: calc(100% - 20px);
+            margin: 62px auto 12px !important;
+          }
+
+          .pengeluaran-modal-dialog .modal-header {
+            padding: 18px 18px;
+          }
+
+          .pengeluaran-modal-dialog .modal-body {
+            padding: 18px;
+          }
+
+          .pengeluaran-modal-dialog .modal-footer {
+            padding: 12px 18px 16px;
+          }
+        }
+      `}</style>
+
       {/* ==========================================
           MODAL TAMBAH / EDIT
       ========================================== */}
@@ -1976,7 +2025,11 @@ function Pengeluaran() {
             resetForm();
           }
         }}
-        centered
+        style={{
+          zIndex: 3000,
+        }}
+        dialogClassName="pengeluaran-modal-dialog"
+        contentClassName="pengeluaran-modal-content"
       >
         <Modal.Header
           closeButton={!saving}
