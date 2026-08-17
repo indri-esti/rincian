@@ -4,4 +4,7 @@
     <string name="title_activity_main">Rincian</string>
     <string name="package_name">com.rincian.app</string>
     <string name="custom_url_scheme">com.rincian.app</string>
+
+    <!-- AdMob -->
+    <string name="admob_app_id">ca-app-pub-5699049952148750~4549291077</string>
 </resources>

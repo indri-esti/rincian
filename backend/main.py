@@ -23,6 +23,9 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+
+        # FRONTEND RINCIAN VERCEL
+        "https://rincian-one.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -135,6 +138,7 @@ def home():
 # =========================
 
 @app.post("/register")
+@app.post("/api/register")
 def register(
     data: RegisterRequest,
     db: Session = Depends(get_db)
@@ -192,6 +196,7 @@ def register(
 # =========================
 
 @app.post("/login")
+@app.post("/api/login")
 def login(
     data: LoginRequest,
     db: Session = Depends(get_db)
@@ -232,11 +237,6 @@ def login(
 # =========================================================
 # PROFILE
 # =========================================================
-
-
-# =========================
-# GET PROFILE
-# =========================
 
 @app.get("/api/profile")
 def get_profile(
@@ -279,10 +279,6 @@ def get_profile(
         "created_at": user.created_at,
     }
 
-
-# =========================
-# PUT PROFILE
-# =========================
 
 @app.put("/api/profile")
 def update_profile(
@@ -374,10 +370,6 @@ def update_profile(
     }
 
 
-# =========================
-# DELETE PROFILE / AKUN
-# =========================
-
 @app.delete("/api/profile")
 def delete_profile(
     x_user_id: Optional[str] = Header(
@@ -424,11 +416,6 @@ def delete_profile(
 # PENGELUARAN
 # =========================================================
 
-
-# =========================
-# HELPER RESPONSE
-# =========================
-
 def expense_response(expense):
     return {
         "id": expense.id,
@@ -440,10 +427,6 @@ def expense_response(expense):
         "created_at": expense.created_at,
     }
 
-
-# =========================
-# GET PENGELUARAN
-# =========================
 
 @app.get("/api/pengeluaran")
 def get_pengeluaran(
@@ -483,10 +466,6 @@ def get_pengeluaran(
         for expense in expenses
     ]
 
-
-# =========================
-# POST PENGELUARAN
-# =========================
 
 @app.post("/api/pengeluaran")
 def create_pengeluaran(
@@ -538,10 +517,6 @@ def create_pengeluaran(
 
     return expense_response(expense)
 
-
-# =========================
-# PUT PENGELUARAN
-# =========================
 
 @app.put("/api/pengeluaran/{expense_id}")
 def update_pengeluaran(
@@ -596,10 +571,6 @@ def update_pengeluaran(
 
     return expense_response(expense)
 
-
-# =========================
-# DELETE PENGELUARAN
-# =========================
 
 @app.delete("/api/pengeluaran/{expense_id}")
 def delete_pengeluaran(

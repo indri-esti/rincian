@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AdMob } from "@capgo/capacitor-admob";
 
 import {
   Container,
@@ -34,6 +35,48 @@ function Dashboard() {
   const [periode, setPeriode] = useState("Bulan ini");
   const [pengeluaran, setPengeluaran] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // ==========================================
+  // ADMOB BANNER
+  // ==========================================
+
+  useEffect(() => {
+    let mounted = true;
+
+    const tampilkanIklan = async () => {
+      try {
+        await AdMob.start();
+
+        if (!mounted) return;
+
+        await AdMob.adCreate({
+          // Google official test banner ID
+          adUnitId: "ca-app-pub-3940256099942544/9214589741",
+        });
+
+        await AdMob.adLoad({
+          id: 0,
+        });
+
+        await AdMob.adShow({
+          id: 0,
+        });
+
+        console.log("AdMob Banner berhasil ditampilkan");
+      } catch (error) {
+        console.error(
+          "Gagal menampilkan AdMob Banner:",
+          error
+        );
+      }
+    };
+
+    tampilkanIklan();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // ==========================================
   // AMBIL USER LOGIN
@@ -180,34 +223,13 @@ function Dashboard() {
     const sekarang = new Date();
 
     const hasil = [
-      {
-        hari: "Sen",
-        nominal: 0,
-      },
-      {
-        hari: "Sel",
-        nominal: 0,
-      },
-      {
-        hari: "Rab",
-        nominal: 0,
-      },
-      {
-        hari: "Kam",
-        nominal: 0,
-      },
-      {
-        hari: "Jum",
-        nominal: 0,
-      },
-      {
-        hari: "Sab",
-        nominal: 0,
-      },
-      {
-        hari: "Min",
-        nominal: 0,
-      },
+      { hari: "Sen", nominal: 0 },
+      { hari: "Sel", nominal: 0 },
+      { hari: "Rab", nominal: 0 },
+      { hari: "Kam", nominal: 0 },
+      { hari: "Jum", nominal: 0 },
+      { hari: "Sab", nominal: 0 },
+      { hari: "Min", nominal: 0 },
     ];
 
     pengeluaran.forEach((item) => {

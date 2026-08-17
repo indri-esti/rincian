@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 import {
@@ -36,8 +35,6 @@ import {
 import { GiForkKnifeSpoon } from "react-icons/gi";
 
 function Pengeluaran() {
-  const navigate = useNavigate();
-
   const API_URL =
     import.meta.env.VITE_API_URL ||
     "http://127.0.0.1:8000";
@@ -67,10 +64,13 @@ function Pengeluaran() {
       user.id,
       user.user_id,
       user.userId,
+      user.id_user,
       user?.user?.id,
       user?.user?.user_id,
+      user?.user?.id_user,
       user?.data?.id,
       user?.data?.user_id,
+      user?.data?.id_user,
     ];
 
     const foundId = possibleIds.find(
@@ -124,6 +124,8 @@ function Pengeluaran() {
 
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const getToday = () => {
     const now = new Date();
@@ -156,12 +158,10 @@ function Pengeluaran() {
 
     const value = String(tanggal).trim();
 
-    // Sudah sesuai format input date: YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
       return value;
     }
 
-    // Format Indonesia: DD/MM/YYYY
     const indonesiaMatch = value.match(
       /^(\d{2})\/(\d{2})\/(\d{4})$/
     );
@@ -173,8 +173,6 @@ function Pengeluaran() {
       return `${year}-${month}-${day}`;
     }
 
-    // ISO datetime dari backend, contoh:
-    // 2026-08-16T00:00:00
     const isoMatch = value.match(
       /^(\d{4}-\d{2}-\d{2})/
     );
@@ -187,9 +185,11 @@ function Pengeluaran() {
 
     if (!Number.isNaN(parsed.getTime())) {
       const year = parsed.getFullYear();
+
       const month = String(
         parsed.getMonth() + 1
       ).padStart(2, "0");
+
       const day = String(
         parsed.getDate()
       ).padStart(2, "0");
@@ -200,74 +200,168 @@ function Pengeluaran() {
     return "";
   };
 
-  const normalizePengeluaran = (item) => ({
-    id:
+  // ==========================================
+  // NORMALIZE DATA
+  // ==========================================
+
+  const normalizePengeluaran = (item) => {
+    if (!item || typeof item !== "object") {
+      return null;
+    }
+
+    const id =
       item?.id ??
+      item?.id_pengeluaran ??
       item?.pengeluaran_id ??
-      null,
+      item?.expense_id ??
+      item?.data?.id ??
+      null;
 
-    nama:
-      item?.nama ??
-      item?.title ??
-      item?.name ??
-      "",
+    return {
+      id:
+        id !== undefined &&
+        id !== null &&
+        String(id).trim() !== ""
+          ? Number.isNaN(Number(id))
+            ? id
+            : Number(id)
+          : null,
 
-    kategori:
-      item?.kategori ??
-      item?.category ??
-      "Makanan",
+      nama:
+        item?.nama ??
+        item?.title ??
+        item?.name ??
+        "",
 
-    nominal: Number(
-      item?.nominal ??
-        item?.amount ??
-        0
-    ),
+      kategori:
+        item?.kategori ??
+        item?.category ??
+        "Makanan",
 
-    tanggal: normalizeTanggal(
-      item?.tanggal ??
-        item?.date ??
-        item?.tanggal_pengeluaran ??
-        item?.expense_date ??
-        ""
-    ),
+      nominal: Number(
+        item?.nominal ??
+          item?.amount ??
+          0
+      ),
 
-    catatan:
-      item?.catatan ??
-      item?.description ??
-      "",
-  });
+      tanggal: normalizeTanggal(
+        item?.tanggal ??
+          item?.date ??
+          item?.tanggal_pengeluaran ??
+          item?.expense_date ??
+          ""
+      ),
+
+      catatan:
+        item?.catatan ??
+        item?.description ??
+        "",
+    };
+  };
+
+  // ==========================================
+  // AMBIL ARRAY DATA DARI RESPONSE
+  // ==========================================
+
+  const extractPengeluaran = (responseData) => {
+    if (Array.isArray(responseData)) {
+      return responseData;
+    }
+
+    if (!responseData) {
+      return [];
+    }
+
+    if (Array.isArray(responseData.data)) {
+      return responseData.data;
+    }
+
+    if (Array.isArray(responseData.pengeluaran)) {
+      return responseData.pengeluaran;
+    }
+
+    if (Array.isArray(responseData.expenses)) {
+      return responseData.expenses;
+    }
+
+    if (Array.isArray(responseData.items)) {
+      return responseData.items;
+    }
+
+    if (Array.isArray(responseData.results)) {
+      return responseData.results;
+    }
+
+    // Jika backend mengembalikan satu object
+    if (
+      typeof responseData === "object" &&
+      (
+        responseData.id !== undefined ||
+        responseData.id_pengeluaran !== undefined ||
+        responseData.pengeluaran_id !== undefined
+      )
+    ) {
+      return [responseData];
+    }
+
+    return [];
+  };
+
+  // ==========================================
+  // LOAD DATA
+  // ==========================================
 
   const loadPengeluaran = async () => {
+    const userId = getUserId();
+
+    if (!userId) {
+      console.warn(
+        "User ID tidak ditemukan di rincianUser."
+      );
+
+      setPengeluaran([]);
+      return;
+    }
+
+    setLoading(true);
+
     try {
-      const userId = getUserId();
-
-      if (!userId) {
-        window.alert(
-          "Data pengguna tidak ditemukan. Silakan login kembali."
-        );
-
-        return;
-      }
-
       const response = await axios.get(
         `${API_URL}/api/pengeluaran`,
         {
           headers: {
+            ...getAuthHeaders(),
             "X-User-ID": String(userId),
           },
+
+          params: {
+            user_id: userId,
+          },
+
+          timeout: 15000,
         }
       );
 
-      const data = Array.isArray(response.data)
-        ? response.data
-        : Array.isArray(response.data?.data)
-        ? response.data.data
-        : [];
+      console.log(
+        "Response GET pengeluaran:",
+        response.data
+      );
+
+      const rawData =
+        extractPengeluaran(
+          response.data
+        );
+
+      const normalizedData = rawData
+        .map(normalizePengeluaran)
+        .filter(
+          (item) =>
+            item &&
+            item.id !== null
+        );
 
       setPengeluaran(
-        data
-          .map(normalizePengeluaran)
-          .filter((item) => item.id !== null)
+        normalizedData
       );
     } catch (error) {
       console.error(
@@ -275,11 +369,26 @@ function Pengeluaran() {
         error
       );
 
-      window.alert(
-        error.response?.data?.detail ||
-          error.response?.data?.message ||
-          "Gagal mengambil data pengeluaran dari server."
+      console.error(
+        "Status:",
+        error.response?.status
       );
+
+      console.error(
+        "Response:",
+        error.response?.data
+      );
+
+      /*
+       * Jangan tampilkan alert gagal ambil data.
+       *
+       * Jika server sedang kosong / endpoint belum
+       * mengembalikan data, UI cukup menampilkan
+       * "Tidak ada pengeluaran".
+       */
+      setPengeluaran([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -295,35 +404,44 @@ function Pengeluaran() {
     Makanan: {
       icon: GiForkKnifeSpoon,
     },
+
     Belanja: {
       icon: FiShoppingBag,
     },
+
     Transportasi: {
       icon: FiTruck,
     },
+
     Tagihan: {
       icon: FiCreditCard,
     },
+
     Kesehatan: {
       icon: FiHeart,
     },
+
     Rumah: {
       icon: FiHome,
     },
   };
 
-  const kategoriList = Object.keys(kategoriData);
+  const kategoriList =
+    Object.keys(kategoriData);
 
   // ==========================================
   // FORMAT RUPIAH
   // ==========================================
 
   const formatRupiah = (angka) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(Number(angka) || 0);
+    return new Intl.NumberFormat(
+      "id-ID",
+      {
+        style: "currency",
+        currency: "IDR",
+        maximumFractionDigits: 0,
+      }
+    ).format(Number(angka) || 0);
   };
 
   // ==========================================
@@ -331,14 +449,17 @@ function Pengeluaran() {
   // ==========================================
 
   const formatTanggal = (tanggal) => {
-    const normalized = normalizeTanggal(
-      tanggal
-    );
+    const normalized =
+      normalizeTanggal(tanggal);
 
-    if (!normalized) return "-";
+    if (!normalized) {
+      return "-";
+    }
 
     const [year, month, day] =
-      normalized.split("-").map(Number);
+      normalized
+        .split("-")
+        .map(Number);
 
     const date = new Date(
       year,
@@ -346,15 +467,22 @@ function Pengeluaran() {
       day
     );
 
-    if (Number.isNaN(date.getTime())) {
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
       return "-";
     }
 
-    return date.toLocaleDateString("id-ID", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    return date.toLocaleDateString(
+      "id-ID",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }
+    );
   };
 
   // ==========================================
@@ -362,7 +490,10 @@ function Pengeluaran() {
   // ==========================================
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const {
+      name,
+      value,
+    } = e.target;
 
     setForm((prev) => ({
       ...prev,
@@ -397,20 +528,44 @@ function Pengeluaran() {
 
     setForm({
       nama: item.nama || "",
+
       nominal:
         item.nominal !== undefined &&
         item.nominal !== null
           ? String(item.nominal)
           : "",
+
       kategori:
-        item.kategori || "Makanan",
+        item.kategori ||
+        "Makanan",
+
       tanggal:
-        normalizeTanggal(item.tanggal) ||
-        getToday(),
-      catatan: item.catatan || "",
+        normalizeTanggal(
+          item.tanggal
+        ) || getToday(),
+
+      catatan:
+        item.catatan || "",
     });
 
     setShowModal(true);
+  };
+
+  // ==========================================
+  // RESET FORM
+  // ==========================================
+
+  const resetForm = () => {
+    setShowModal(false);
+    setEditingId(null);
+
+    setForm({
+      nama: "",
+      nominal: "",
+      kategori: "Makanan",
+      tanggal: getToday(),
+      catatan: "",
+    });
   };
 
   // ==========================================
@@ -420,9 +575,14 @@ function Pengeluaran() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const nama = form.nama.trim();
-    const nominal = Number(form.nominal);
-    const userId = getUserId();
+    const nama =
+      form.nama.trim();
+
+    const nominal =
+      Number(form.nominal);
+
+    const userId =
+      getUserId();
 
     if (!nama) {
       window.alert(
@@ -432,7 +592,9 @@ function Pengeluaran() {
     }
 
     if (
-      !Number.isFinite(nominal) ||
+      !Number.isFinite(
+        nominal
+      ) ||
       nominal <= 0
     ) {
       window.alert(
@@ -457,15 +619,10 @@ function Pengeluaran() {
 
     const payload = {
       user_id: userId,
-
       title: nama,
-
       amount: nominal,
-
       category: form.kategori,
-
       date: form.tanggal,
-
       description:
         form.catatan.trim(),
     };
@@ -475,15 +632,39 @@ function Pengeluaran() {
       payload
     );
 
+    setSaving(true);
+
     try {
+      // ======================================
+      // EDIT
+      // ======================================
+
       if (editingId !== null) {
-        const response = await axios.put(
-          `${API_URL}/api/pengeluaran/${editingId}`,
-          payload,
-          {
-            headers: getAuthHeaders(),
-          }
+        const response =
+          await axios.put(
+            `${API_URL}/api/pengeluaran/${editingId}`,
+            payload,
+            {
+              headers: {
+                ...getAuthHeaders(),
+                "X-User-ID":
+                  String(userId),
+              },
+
+              timeout: 15000,
+            }
+          );
+
+        console.log(
+          "Response EDIT:",
+          response.data
         );
+
+        /*
+         * Update langsung di layar.
+         * Setelah itu reload dari database supaya
+         * data frontend benar-benar sinkron.
+         */
 
         const responseData =
           response.data?.data ??
@@ -494,71 +675,131 @@ function Pengeluaran() {
             responseData
           );
 
-        setPengeluaran((prev) =>
-          prev.map((item) =>
-            item.id === editingId
-              ? {
-                  ...item,
-                  ...updated,
-                  tanggal:
-                    updated.tanggal ||
-                    normalizeTanggal(
-                      form.tanggal
-                    ),
-                  id:
-                    updated.id ??
-                    editingId,
-                }
-              : item
-          )
+        setPengeluaran(
+          (prev) =>
+            prev.map((item) =>
+              Number(item.id) ===
+              Number(editingId)
+                ? {
+                    ...item,
+
+                    ...(updated || {}),
+
+                    id: editingId,
+
+                    nama: nama,
+
+                    nominal:
+                      nominal,
+
+                    kategori:
+                      form.kategori,
+
+                    tanggal:
+                      form.tanggal,
+
+                    catatan:
+                      form.catatan.trim(),
+                  }
+                : item
+            )
         );
-      } else {
-        const response = await axios.post(
+
+        resetForm();
+
+        /*
+         * Sinkronisasi ulang dengan backend.
+         */
+        await loadPengeluaran();
+
+        return;
+      }
+
+      // ======================================
+      // TAMBAH
+      // ======================================
+
+      const response =
+        await axios.post(
           `${API_URL}/api/pengeluaran`,
           payload,
           {
-            headers: getAuthHeaders(),
+            headers: {
+              ...getAuthHeaders(),
+              "X-User-ID":
+                String(userId),
+            },
+
+            timeout: 15000,
           }
         );
 
-        const responseData =
-          response.data?.data ??
-          response.data;
+      console.log(
+        "Response TAMBAH:",
+        response.data
+      );
 
-        const created =
-          normalizePengeluaran(
-            responseData
-          );
+      const responseData =
+        response.data?.data ??
+        response.data;
 
-        const createdWithFormDate = {
+      const created =
+        normalizePengeluaran(
+          responseData
+        );
+
+      /*
+       * Kalau backend mengembalikan object
+       * lengkap dengan ID, tampilkan langsung.
+       */
+
+      if (
+        created &&
+        created.id !== null
+      ) {
+        const createdData = {
           ...created,
+
+          id: created.id,
+
+          nama:
+            created.nama ||
+            nama,
+
+          nominal:
+            created.nominal ||
+            nominal,
+
+          kategori:
+            created.kategori ||
+            form.kategori,
+
           tanggal:
             created.tanggal ||
-            normalizeTanggal(
-              form.tanggal
-            ),
+            form.tanggal,
+
+          catatan:
+            created.catatan ||
+            form.catatan.trim(),
         };
 
-        if (createdWithFormDate.id !== null) {
-          setPengeluaran((prev) => [
-            createdWithFormDate,
+        setPengeluaran(
+          (prev) => [
+            createdData,
             ...prev,
-          ]);
-        } else {
-          await loadPengeluaran();
-        }
+          ]
+        );
       }
 
-      setShowModal(false);
-      setEditingId(null);
+      resetForm();
 
-      setForm({
-        nama: "",
-        nominal: "",
-        kategori: "Makanan",
-        tanggal: getToday(),
-        catatan: "",
-      });
+      /*
+       * Ini penting:
+       * meskipun response POST tidak mengembalikan
+       * data lengkap, data tetap diambil ulang
+       * dari database.
+       */
+      await loadPengeluaran();
     } catch (error) {
       console.error(
         "Gagal menyimpan pengeluaran:",
@@ -566,15 +807,23 @@ function Pengeluaran() {
       );
 
       console.error(
-        "Response error:",
+        "Status:",
+        error.response?.status
+      );
+
+      console.error(
+        "Response:",
         error.response?.data
       );
 
       window.alert(
         error.response?.data?.detail ||
           error.response?.data?.message ||
+          error.response?.data?.error ||
           "Gagal menyimpan pengeluaran ke server."
       );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -583,15 +832,17 @@ function Pengeluaran() {
   // ==========================================
 
   const handleDelete = async (id) => {
-    const yakin = window.confirm(
-      "Apakah kamu yakin ingin menghapus pengeluaran ini?"
-    );
+    const yakin =
+      window.confirm(
+        "Apakah kamu yakin ingin menghapus pengeluaran ini?"
+      );
 
     if (!yakin) {
       return;
     }
 
-    const userId = getUserId();
+    const userId =
+      getUserId();
 
     if (!userId) {
       window.alert(
@@ -604,15 +855,30 @@ function Pengeluaran() {
       await axios.delete(
         `${API_URL}/api/pengeluaran/${id}`,
         {
-          headers: getAuthHeaders(),
+          headers: {
+            ...getAuthHeaders(),
+            "X-User-ID":
+              String(userId),
+          },
+
+          params: {
+            user_id: userId,
+          },
+
+          timeout: 15000,
         }
       );
 
-      setPengeluaran((prev) =>
-        prev.filter(
-          (item) => item.id !== id
-        )
+      setPengeluaran(
+        (prev) =>
+          prev.filter(
+            (item) =>
+              Number(item.id) !==
+              Number(id)
+          )
       );
+
+      await loadPengeluaran();
     } catch (error) {
       console.error(
         "Gagal menghapus pengeluaran:",
@@ -622,6 +888,7 @@ function Pengeluaran() {
       window.alert(
         error.response?.data?.detail ||
           error.response?.data?.message ||
+          error.response?.data?.error ||
           "Gagal menghapus pengeluaran dari server."
       );
     }
@@ -631,147 +898,188 @@ function Pengeluaran() {
   // FILTER
   // ==========================================
 
-  const filteredPengeluaran = useMemo(() => {
-    const keyword =
-      search.trim().toLowerCase();
+  const filteredPengeluaran =
+    useMemo(() => {
+      const keyword =
+        search
+          .trim()
+          .toLowerCase();
 
-    return pengeluaran.filter((item) => {
-      const nama = String(
-        item.nama || ""
-      ).toLowerCase();
+      return pengeluaran.filter(
+        (item) => {
+          const nama =
+            String(
+              item.nama || ""
+            ).toLowerCase();
 
-      const kategori = String(
-        item.kategori || ""
-      ).toLowerCase();
+          const kategori =
+            String(
+              item.kategori || ""
+            ).toLowerCase();
 
-      const catatan = String(
-        item.catatan || ""
-      ).toLowerCase();
+          const catatan =
+            String(
+              item.catatan || ""
+            ).toLowerCase();
 
-      const cocokSearch =
-        !keyword ||
-        nama.includes(keyword) ||
-        kategori.includes(keyword) ||
-        catatan.includes(keyword);
+          const cocokSearch =
+            !keyword ||
+            nama.includes(
+              keyword
+            ) ||
+            kategori.includes(
+              keyword
+            ) ||
+            catatan.includes(
+              keyword
+            );
 
-      const cocokKategori =
-        filterKategori === "Semua" ||
-        item.kategori ===
-          filterKategori;
+          const cocokKategori =
+            filterKategori ===
+              "Semua" ||
+            item.kategori ===
+              filterKategori;
 
-      let cocokPeriode = true;
+          let cocokPeriode =
+            true;
 
-      if (filterPeriode !== "Semua") {
-        const normalizedTanggal =
-          normalizeTanggal(item.tanggal);
+          if (
+            filterPeriode !==
+            "Semua"
+          ) {
+            const normalizedTanggal =
+              normalizeTanggal(
+                item.tanggal
+              );
 
-        if (!normalizedTanggal) {
-          return false;
-        }
+            if (
+              !normalizedTanggal
+            ) {
+              return false;
+            }
 
-        const [tahun, bulan, hari] =
-          normalizedTanggal
-            .split("-")
-            .map(Number);
+            const [
+              tahun,
+              bulan,
+              hari,
+            ] =
+              normalizedTanggal
+                .split("-")
+                .map(Number);
 
-        const tanggalItem = new Date(
-          tahun,
-          bulan - 1,
-          hari
-        );
+            const tanggalItem =
+              new Date(
+                tahun,
+                bulan - 1,
+                hari
+              );
 
-        if (
-          Number.isNaN(
-            tanggalItem.getTime()
-          )
-        ) {
-          return false;
-        }
+            if (
+              Number.isNaN(
+                tanggalItem.getTime()
+              )
+            ) {
+              return false;
+            }
 
-        const sekarang = new Date();
+            const sekarang =
+              new Date();
 
-        const hariIni = new Date(
-          sekarang.getFullYear(),
-          sekarang.getMonth(),
-          sekarang.getDate()
-        );
+            const hariIni =
+              new Date(
+                sekarang.getFullYear(),
+                sekarang.getMonth(),
+                sekarang.getDate()
+              );
 
-        if (
-          filterPeriode ===
-          "Hari ini"
-        ) {
-          cocokPeriode =
-            tanggalItem.getTime() ===
-            hariIni.getTime();
-        }
+            if (
+              filterPeriode ===
+              "Hari ini"
+            ) {
+              cocokPeriode =
+                tanggalItem.getTime() ===
+                hariIni.getTime();
+            }
 
-        if (
-          filterPeriode ===
-          "Minggu ini"
-        ) {
-          const hari =
-            hariIni.getDay() === 0
-              ? 6
-              : hariIni.getDay() - 1;
+            if (
+              filterPeriode ===
+              "Minggu ini"
+            ) {
+              const hari =
+                hariIni.getDay() ===
+                0
+                  ? 6
+                  : hariIni.getDay() -
+                    1;
 
-          const awalMinggu =
-            new Date(hariIni);
+              const awalMinggu =
+                new Date(
+                  hariIni
+                );
 
-          awalMinggu.setDate(
-            hariIni.getDate() - hari
+              awalMinggu.setDate(
+                hariIni.getDate() -
+                  hari
+              );
+
+              const akhirMinggu =
+                new Date(
+                  awalMinggu
+                );
+
+              akhirMinggu.setDate(
+                awalMinggu.getDate() +
+                  6
+              );
+
+              cocokPeriode =
+                tanggalItem >=
+                  awalMinggu &&
+                tanggalItem <=
+                  akhirMinggu;
+            }
+
+            if (
+              filterPeriode ===
+              "Bulan ini"
+            ) {
+              cocokPeriode =
+                tanggalItem.getMonth() ===
+                  hariIni.getMonth() &&
+                tanggalItem.getFullYear() ===
+                  hariIni.getFullYear();
+            }
+          }
+
+          return (
+            cocokSearch &&
+            cocokKategori &&
+            cocokPeriode
           );
-
-          const akhirMinggu =
-            new Date(awalMinggu);
-
-          akhirMinggu.setDate(
-            awalMinggu.getDate() + 6
-          );
-
-          cocokPeriode =
-            tanggalItem >=
-              awalMinggu &&
-            tanggalItem <=
-              akhirMinggu;
         }
-
-        if (
-          filterPeriode ===
-          "Bulan ini"
-        ) {
-          cocokPeriode =
-            tanggalItem.getMonth() ===
-              hariIni.getMonth() &&
-            tanggalItem.getFullYear() ===
-              hariIni.getFullYear();
-        }
-      }
-
-      return (
-        cocokSearch &&
-        cocokKategori &&
-        cocokPeriode
       );
-    });
-  }, [
-    pengeluaran,
-    search,
-    filterKategori,
-    filterPeriode,
-  ]);
+    }, [
+      pengeluaran,
+      search,
+      filterKategori,
+      filterPeriode,
+    ]);
 
   // ==========================================
   // TOTAL
   // ==========================================
 
-  const totalPengeluaran = useMemo(() => {
-    return filteredPengeluaran.reduce(
-      (total, item) =>
-        total +
-        Number(item.nominal || 0),
-      0
-    );
-  }, [filteredPengeluaran]);
+  const totalPengeluaran =
+    useMemo(() => {
+      return filteredPengeluaran.reduce(
+        (total, item) =>
+          total +
+          Number(
+            item.nominal || 0
+          ),
+        0
+      );
+    }, [filteredPengeluaran]);
 
   // ==========================================
   // RENDER
@@ -820,13 +1128,14 @@ function Pengeluaran() {
             >
               <div
                 className="d-flex align-items-center justify-content-center gap-2 mb-1"
-              ></div>
+              />
 
               <h2
                 className="fw-bold mb-1"
                 style={{
                   color: "#172033",
-                  letterSpacing: "-0.6px",
+                  letterSpacing:
+                    "-0.6px",
                   fontSize:
                     "clamp(2rem, 5vw, 3rem)",
                   lineHeight: 1.1,
@@ -1128,7 +1437,8 @@ function Pengeluaran() {
                         "11px 13px",
                       backgroundColor:
                         "#fff",
-                      color: "#3e4758",
+                      color:
+                        "#3e4758",
                     }}
                   >
                     <FiFilter className="me-2" />
@@ -1160,7 +1470,9 @@ function Pengeluaran() {
                     {kategoriList.map(
                       (kategori) => (
                         <Dropdown.Item
-                          key={kategori}
+                          key={
+                            kategori
+                          }
                           onClick={() =>
                             setFilterKategori(
                               kategori
@@ -1195,7 +1507,8 @@ function Pengeluaran() {
                         "11px 13px",
                       backgroundColor:
                         "#fff",
-                      color: "#3e4758",
+                      color:
+                        "#3e4758",
                     }}
                   >
                     <FiCalendar className="me-2" />
@@ -1287,7 +1600,8 @@ function Pengeluaran() {
                       "11px",
                     padding:
                       "11px 13px",
-                    color: "#596273",
+                    color:
+                      "#596273",
                   }}
                 >
                   <FiX className="me-1" />
@@ -1314,7 +1628,8 @@ function Pengeluaran() {
                 <h5
                   className="fw-bold mb-1"
                   style={{
-                    color: "#172033",
+                    color:
+                      "#172033",
                   }}
                 >
                   Daftar Pengeluaran
@@ -1322,7 +1637,8 @@ function Pengeluaran() {
 
                 <small
                   style={{
-                    color: "#8b94a7",
+                    color:
+                      "#8b94a7",
                   }}
                 >
                   {
@@ -1337,7 +1653,8 @@ function Pengeluaran() {
                 text="dark"
                 className="px-3 py-2"
                 style={{
-                  borderRadius: "9px",
+                  borderRadius:
+                    "9px",
                   fontWeight: 500,
                 }}
               >
@@ -1345,14 +1662,52 @@ function Pengeluaran() {
               </Badge>
             </div>
 
-            {filteredPengeluaran.length ===
-            0 ? (
+            {loading ? (
               <div
                 className="text-center py-5"
                 style={{
                   border:
                     "1px dashed #d9dee8",
-                  borderRadius: "15px",
+                  borderRadius:
+                    "15px",
+                  backgroundColor:
+                    "#fafbfc",
+                }}
+              >
+                <div
+                  className="spinner-border text-primary mb-3"
+                  role="status"
+                />
+
+                <h6
+                  className="fw-bold"
+                  style={{
+                    color:
+                      "#172033",
+                  }}
+                >
+                  Memuat pengeluaran...
+                </h6>
+
+                <p
+                  className="mb-0"
+                  style={{
+                    color:
+                      "#8b94a7",
+                  }}
+                >
+                  Mengambil data pengeluaran kamu
+                </p>
+              </div>
+            ) : filteredPengeluaran.length ===
+              0 ? (
+              <div
+                className="text-center py-5"
+                style={{
+                  border:
+                    "1px dashed #d9dee8",
+                  borderRadius:
+                    "15px",
                   backgroundColor:
                     "#fafbfc",
                 }}
@@ -1362,10 +1717,12 @@ function Pengeluaran() {
                   style={{
                     width: "64px",
                     height: "64px",
-                    borderRadius: "18px",
+                    borderRadius:
+                      "18px",
                     backgroundColor:
                       "#eef4ff",
-                    color: "#0d6efd",
+                    color:
+                      "#0d6efd",
                   }}
                 >
                   <FiSearch size={27} />
@@ -1374,7 +1731,8 @@ function Pengeluaran() {
                 <h6
                   className="fw-bold"
                   style={{
-                    color: "#172033",
+                    color:
+                      "#172033",
                   }}
                 >
                   Tidak ada pengeluaran
@@ -1383,16 +1741,20 @@ function Pengeluaran() {
                 <p
                   className="mb-3"
                   style={{
-                    color: "#8b94a7",
+                    color:
+                      "#8b94a7",
                   }}
                 >
-                  Tidak ditemukan data
-                  yang sesuai.
+                  Belum ada data
+                  pengeluaran yang
+                  tercatat.
                 </p>
 
                 <Button
                   variant="primary"
-                  onClick={handleTambah}
+                  onClick={
+                    handleTambah
+                  }
                   className="d-inline-flex align-items-center"
                 >
                   <FiPlus className="me-2" />
@@ -1411,7 +1773,9 @@ function Pengeluaran() {
 
                     return (
                       <Card
-                        key={item.id}
+                        key={
+                          item.id
+                        }
                         className="border-0 mb-3"
                         style={{
                           borderRadius:
@@ -1428,8 +1792,10 @@ function Pengeluaran() {
                               <div
                                 className="d-flex align-items-center justify-content-center"
                                 style={{
-                                  width: "52px",
-                                  height: "52px",
+                                  width:
+                                    "52px",
+                                  height:
+                                    "52px",
                                   borderRadius:
                                     "15px",
                                   backgroundColor:
@@ -1439,7 +1805,9 @@ function Pengeluaran() {
                                 }}
                               >
                                 <Icon
-                                  size={23}
+                                  size={
+                                    23
+                                  }
                                 />
                               </div>
                             </Col>
@@ -1453,7 +1821,9 @@ function Pengeluaran() {
                                       "#202838",
                                   }}
                                 >
-                                  {item.nama}
+                                  {
+                                    item.nama
+                                  }
                                 </h6>
 
                                 <Badge
@@ -1468,7 +1838,9 @@ function Pengeluaran() {
                                       500,
                                   }}
                                 >
-                                  {item.kategori}
+                                  {
+                                    item.kategori
+                                  }
                                 </Badge>
                               </div>
 
@@ -1480,7 +1852,9 @@ function Pengeluaran() {
                                 }}
                               >
                                 <FiCalendar
-                                  size={13}
+                                  size={
+                                    13
+                                  }
                                   className="me-1"
                                 />
 
@@ -1497,7 +1871,9 @@ function Pengeluaran() {
                                       "#8b94a7",
                                   }}
                                 >
-                                  {item.catatan}
+                                  {
+                                    item.catatan
+                                  }
                                 </div>
                               )}
                             </Col>
@@ -1542,7 +1918,9 @@ function Pengeluaran() {
                                 >
                                   <FiEdit2
                                     className="me-1"
-                                    size={14}
+                                    size={
+                                      14
+                                    }
                                   />
                                   Edit
                                 </Button>
@@ -1567,7 +1945,9 @@ function Pengeluaran() {
                                 >
                                   <FiTrash2
                                     className="me-1"
-                                    size={14}
+                                    size={
+                                      14
+                                    }
                                   />
                                   Hapus
                                 </Button>
@@ -1591,162 +1971,138 @@ function Pengeluaran() {
 
       <Modal
         show={showModal}
-        onHide={() =>
-          setShowModal(false)
-        }
+        onHide={() => {
+          if (!saving) {
+            resetForm();
+          }
+        }}
         centered
-        backdrop="static"
-        dialogClassName="rincian-expense-modal"
-        style={{ zIndex: 2000 }}
       >
-        <Form onSubmit={handleSubmit}>
-          <Modal.Header
-            closeButton
+        <Modal.Header
+          closeButton={!saving}
+          style={{
+            borderBottom:
+              "1px solid #edf0f5",
+          }}
+        >
+          <Modal.Title
+            className="fw-bold"
             style={{
-              borderBottom:
-                "1px solid #edf0f5",
-              padding: "20px 58px 20px 58px",
-              position: "relative",
-              minHeight: "82px",
+              color:
+                "#172033",
             }}
           >
-            <div
-              style={{
-                minWidth: 0,
-                width: "100%",
-                paddingRight: "8px",
-              }}
-            >
-              <Modal.Title
-                className="fw-bold"
-                style={{
-                  color: "#172033",
-                  fontSize: "clamp(1.1rem, 5vw, 1.35rem)",
-                  lineHeight: 1.25,
-                  whiteSpace: "normal",
-                  overflowWrap: "break-word",
-                  margin: 0,
-                }}
-              >
-                {editingId !== null
-                  ? "Edit Pengeluaran"
-                  : "Tambah Pengeluaran"}
-              </Modal.Title>
+            {editingId !== null
+              ? "Edit Pengeluaran"
+              : "Tambah Pengeluaran"}
+          </Modal.Title>
+        </Modal.Header>
 
-              <small
-                style={{
-                  color: "#8b94a7",
-                }}
-              >
-                Lengkapi informasi
-                pengeluaran
-              </small>
-            </div>
-          </Modal.Header>
-
-          <style>{`
-            .rincian-expense-modal .btn-close {
-              position: absolute;
-              top: 20px;
-              right: 18px;
-              z-index: 5;
-              margin: 0;
-            }
-
-            .rincian-expense-modal .modal-content {
-              overflow: hidden;
-              position: relative;
-              z-index: 2001;
-            }
-          `}</style>
-
-          <Modal.Body
-            style={{
-              padding: "22px",
-            }}
-          >
+        <Form
+          onSubmit={
+            handleSubmit
+          }
+        >
+          <Modal.Body>
             <Form.Group className="mb-3">
-              <Form.Label className="fw-semibold">
+              <Form.Label
+                className="fw-semibold"
+              >
                 Nama Pengeluaran
               </Form.Label>
 
               <Form.Control
                 type="text"
                 name="nama"
+                value={
+                  form.nama
+                }
+                onChange={
+                  handleChange
+                }
                 placeholder="Contoh: Makan siang"
-                value={form.nama}
-                onChange={handleChange}
-                autoFocus
+                disabled={saving}
                 style={{
-                  borderRadius: "10px",
-                  padding: "11px 13px",
-                  borderColor:
-                    "#dfe4ec",
-                  boxShadow: "none",
+                  borderRadius:
+                    "10px",
+                  padding:
+                    "11px 13px",
                 }}
               />
             </Form.Group>
 
             <Form.Group className="mb-3">
-              <Form.Label className="fw-semibold">
+              <Form.Label
+                className="fw-semibold"
+              >
                 Nominal
               </Form.Label>
 
               <InputGroup>
-                <InputGroup.Text
-                  style={{
-                    backgroundColor:
-                      "#f8f9fb",
-                    borderColor:
-                      "#dfe4ec",
-                    fontWeight: 600,
-                  }}
-                >
+                <InputGroup.Text>
                   Rp
                 </InputGroup.Text>
 
                 <Form.Control
                   type="number"
                   name="nominal"
-                  placeholder="25000"
+                  value={
+                    form.nominal
+                  }
+                  onChange={
+                    handleChange
+                  }
+                  placeholder="0"
                   min="1"
-                  value={form.nominal}
-                  onChange={handleChange}
+                  disabled={
+                    saving
+                  }
                   style={{
                     padding:
                       "11px 13px",
-                    borderColor:
-                      "#dfe4ec",
-                    boxShadow: "none",
                   }}
                 />
               </InputGroup>
             </Form.Group>
 
             <Form.Group className="mb-3">
-              <Form.Label className="fw-semibold">
+              <Form.Label
+                className="fw-semibold"
+              >
                 Kategori
               </Form.Label>
 
               <Form.Select
                 name="kategori"
-                value={form.kategori}
-                onChange={handleChange}
+                value={
+                  form.kategori
+                }
+                onChange={
+                  handleChange
+                }
+                disabled={
+                  saving
+                }
                 style={{
-                  borderRadius: "10px",
-                  padding: "11px 13px",
-                  borderColor:
-                    "#dfe4ec",
-                  boxShadow: "none",
+                  borderRadius:
+                    "10px",
+                  padding:
+                    "11px 13px",
                 }}
               >
                 {kategoriList.map(
                   (kategori) => (
                     <option
-                      key={kategori}
-                      value={kategori}
+                      key={
+                        kategori
+                      }
+                      value={
+                        kategori
+                      }
                     >
-                      {kategori}
+                      {
+                        kategori
+                      }
                     </option>
                   )
                 )}
@@ -1754,27 +2110,35 @@ function Pengeluaran() {
             </Form.Group>
 
             <Form.Group className="mb-3">
-              <Form.Label className="fw-semibold">
+              <Form.Label
+                className="fw-semibold"
+              >
                 Tanggal
               </Form.Label>
 
               <Form.Control
                 type="date"
                 name="tanggal"
-                value={form.tanggal}
-                onChange={handleChange}
+                value={
+                  form.tanggal
+                }
+                onChange={
+                  handleChange
+                }
+                disabled={saving}
                 style={{
-                  borderRadius: "10px",
-                  padding: "11px 13px",
-                  borderColor:
-                    "#dfe4ec",
-                  boxShadow: "none",
+                  borderRadius:
+                    "10px",
+                  padding:
+                    "11px 13px",
                 }}
               />
             </Form.Group>
 
             <Form.Group>
-              <Form.Label className="fw-semibold">
+              <Form.Label
+                className="fw-semibold"
+              >
                 Catatan
               </Form.Label>
 
@@ -1782,15 +2146,19 @@ function Pengeluaran() {
                 as="textarea"
                 rows={3}
                 name="catatan"
-                placeholder="Tambahkan catatan..."
-                value={form.catatan}
-                onChange={handleChange}
+                value={
+                  form.catatan
+                }
+                onChange={
+                  handleChange
+                }
+                placeholder="Catatan tambahan (opsional)"
+                disabled={saving}
                 style={{
-                  borderRadius: "10px",
-                  padding: "11px 13px",
-                  borderColor:
-                    "#dfe4ec",
-                  boxShadow: "none",
+                  borderRadius:
+                    "10px",
+                  padding:
+                    "11px 13px",
                   resize: "none",
                 }}
               />
@@ -1801,19 +2169,18 @@ function Pengeluaran() {
             style={{
               borderTop:
                 "1px solid #edf0f5",
-              padding: "16px 22px",
             }}
           >
             <Button
               variant="light"
-              type="button"
-              onClick={() =>
-                setShowModal(false)
-              }
               className="border"
+              onClick={
+                resetForm
+              }
+              disabled={saving}
               style={{
-                borderRadius: "10px",
-                padding: "9px 16px",
+                borderRadius:
+                  "10px",
               }}
             >
               Batal
@@ -1822,15 +2189,34 @@ function Pengeluaran() {
             <Button
               variant="primary"
               type="submit"
+              disabled={saving}
               style={{
-                borderRadius: "10px",
-                padding: "9px 18px",
-                fontWeight: 600,
+                borderRadius:
+                  "10px",
+                minWidth:
+                  "130px",
               }}
             >
-              {editingId !== null
-                ? "Simpan Perubahan"
-                : "Simpan Pengeluaran"}
+              {saving ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                  />
+                  Menyimpan...
+                </>
+              ) : editingId !==
+                null ? (
+                <>
+                  <FiEdit2 className="me-2" />
+                  Simpan Perubahan
+                </>
+              ) : (
+                <>
+                  <FiPlus className="me-2" />
+                  Simpan
+                </>
+              )}
             </Button>
           </Modal.Footer>
         </Form>

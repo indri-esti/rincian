@@ -13,6 +13,7 @@
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
+    "@capgo/capacitor-admob": "^8.1.13",
     "axios": "^1.19.0",
     "bootstrap": "^5.3.8",
     "react": "^19.2.8",
