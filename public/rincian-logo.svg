@@ -1,0 +1,106 @@
+<svg
+  width="512"
+  height="512"
+  viewBox="0 0 512 512"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <linearGradient
+      id="bg"
+      x1="80"
+      y1="50"
+      x2="440"
+      y2="470"
+      gradientUnits="userSpaceOnUse"
+    >
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="0.5" stop-color="#1677F0"/>
+      <stop offset="1" stop-color="#0759D8"/>
+    </linearGradient>
+
+    <linearGradient
+      id="letter"
+      x1="170"
+      y1="120"
+      x2="360"
+      y2="400"
+      gradientUnits="userSpaceOnUse"
+    >
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EAF2FF"/>
+    </linearGradient>
+
+    <filter
+      id="shadow"
+      x="-20%"
+      y="-20%"
+      width="140%"
+      height="150%"
+    >
+      <feDropShadow
+        dx="0"
+        dy="10"
+        stdDeviation="12"
+        flood-opacity="0.18"
+      />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect
+    width="512"
+    height="512"
+    rx="145"
+    fill="url(#bg)"
+  />
+
+  <!-- Highlight -->
+  <path
+    d="M150 0H290C205 35 140 120 140 220V365C140 410 105 445 60 445H0V200C0 90 70 0 150 0Z"
+    fill="white"
+    fill-opacity="0.07"
+  />
+
+  <!-- Modern R -->
+  <path
+    d="
+      M165 390
+      V120
+      H282
+      C344 120 390 153 390 207
+      C390 249 366 278 326 290
+      L397 390
+      H330
+      L267 299
+      H222
+      V390
+      H165
+      Z
+
+      M222 173
+      V247
+      H274
+      C306 247 322 233 322 210
+      C322 187 306 173 274 173
+      H222
+      Z
+    "
+    fill="url(#letter)"
+    filter="url(#shadow)"
+  />
+
+  <!-- Fold accent -->
+  <path
+    d="
+      M267 299
+      L330 390
+      H397
+      L326 290
+      C309 295 288 299 267 299
+      Z
+    "
+    fill="#D7E7FF"
+    fill-opacity="0.65"
+  />
+</svg>
