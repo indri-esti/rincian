@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Rincian</string>
+    <string name="title_activity_main">Rincian</string>
+    <string name="package_name">com.rincian.app</string>
+    <string name="custom_url_scheme">com.rincian.app</string>
+</resources>
