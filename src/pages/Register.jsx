@@ -28,10 +28,7 @@ function Register() {
     useState("");
 
   const [error, setError] = useState("");
-
-  // ==========================================
-  // INPUT HANDLER
-  // ==========================================
+  const [loading, setLoading] = useState(false);
 
   const handleNameChange = (e) => {
     setName(e.target.value);
@@ -49,20 +46,22 @@ function Register() {
     setConfirmPassword(e.target.value);
   };
 
-  // ==========================================
-  // REGISTER
-  // ==========================================
-
   const handleRegister = async (e) => {
     e.preventDefault();
+
+    if (loading) return;
+
     setError("");
 
-    if (!name.trim()) {
+    const nameInput = name.trim();
+    const emailInput = email.trim().toLowerCase();
+
+    if (!nameInput) {
       setError("Nama wajib diisi.");
       return;
     }
 
-    if (!email.trim()) {
+    if (!emailInput) {
       setError("Email wajib diisi.");
       return;
     }
@@ -77,34 +76,67 @@ function Register() {
       return;
     }
 
+    setLoading(true);
+
     try {
-      await api.post("/register", {
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
+      const response = await api.post("/register", {
+        name: nameInput,
+        email: emailInput,
         password: password,
       });
 
-      navigate("/login");
+      if (!response.data) {
+        setError("Registrasi gagal.");
+        return;
+      }
+
+      // ======================================
+      // JANGAN LOGIN OTOMATIS
+      // AKUN SUDAH TERSIMPAN DI DATABASE ONLINE
+      // ======================================
+
+      setName("");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+
+      navigate("/login", {
+        replace: true,
+        state: {
+          message: "Registrasi berhasil. Silakan login.",
+        },
+      });
 
     } catch (error) {
       console.error("Register error:", error);
 
       if (error.response?.data?.detail) {
         setError(error.response.data.detail);
+      } else if (error.response?.status === 400) {
+        setError(
+          "Registrasi gagal. Email mungkin sudah terdaftar."
+        );
       } else if (error.response?.status === 404) {
-        setError("Endpoint register tidak ditemukan.");
+        setError(
+          "Endpoint register tidak ditemukan."
+        );
       } else if (error.response) {
-        setError("Registrasi gagal. Silakan coba lagi.");
+        setError(
+          "Registrasi gagal. Silakan coba lagi."
+        );
       } else {
         setError(
           "Tidak dapat terhubung ke server."
         );
       }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="auth-page">
+
       <div className="auth-container">
 
         <div className="auth-brand">
@@ -166,6 +198,7 @@ function Register() {
                 value={name}
                 onChange={handleNameChange}
                 autoComplete="name"
+                disabled={loading}
                 required
               />
 
@@ -183,6 +216,7 @@ function Register() {
                 value={email}
                 onChange={handleEmailChange}
                 autoComplete="email"
+                disabled={loading}
                 required
               />
 
@@ -206,6 +240,7 @@ function Register() {
                   value={password}
                   onChange={handlePasswordChange}
                   autoComplete="new-password"
+                  disabled={loading}
                   required
                 />
 
@@ -218,14 +253,13 @@ function Register() {
                     )
                   }
                   className="password-toggle"
+                  disabled={loading}
                 >
-
                   {showPassword ? (
                     <FiEye />
                   ) : (
                     <FiEyeOff />
                   )}
-
                 </Button>
 
               </InputGroup>
@@ -250,6 +284,7 @@ function Register() {
                   value={confirmPassword}
                   onChange={handleConfirmPasswordChange}
                   autoComplete="new-password"
+                  disabled={loading}
                   required
                 />
 
@@ -262,14 +297,13 @@ function Register() {
                     )
                   }
                   className="password-toggle"
+                  disabled={loading}
                 >
-
                   {showConfirmPassword ? (
                     <FiEye />
                   ) : (
                     <FiEyeOff />
                   )}
-
                 </Button>
 
               </InputGroup>
@@ -279,12 +313,15 @@ function Register() {
             <Button
               type="submit"
               className="auth-button w-100"
+              disabled={loading}
             >
 
               <FiUserPlus size={18} />
 
               <span>
-                Buat Akun
+                {loading
+                  ? "Membuat akun..."
+                  : "Buat Akun"}
               </span>
 
             </Button>
@@ -314,6 +351,7 @@ function Register() {
         </p>
 
       </div>
+
     </div>
   );
 }

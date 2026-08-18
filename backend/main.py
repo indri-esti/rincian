@@ -23,8 +23,6 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-
-        # FRONTEND RINCIAN VERCEL
         "https://rincian-one.vercel.app",
     ],
     allow_credentials=True,
@@ -118,7 +116,7 @@ def verify_password(
             stored_hash
         )
 
-    except ValueError:
+    except (ValueError, AttributeError):
         return False
 
 
@@ -144,13 +142,19 @@ def register(
     db: Session = Depends(get_db)
 ):
     name = data.name.strip()
-    email = data.email.strip().lower()
+    email = str(data.email).strip().lower()
     password = data.password
 
     if not name:
         raise HTTPException(
             status_code=400,
             detail="Nama wajib diisi."
+        )
+
+    if len(name) > 100:
+        raise HTTPException(
+            status_code=400,
+            detail="Nama terlalu panjang."
         )
 
     if len(password) < 8:
@@ -178,8 +182,18 @@ def register(
     )
 
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+
+    try:
+        db.commit()
+        db.refresh(new_user)
+
+    except Exception:
+        db.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Registrasi gagal. Silakan coba lagi."
+        )
 
     return {
         "message": "Registrasi berhasil.",
@@ -201,7 +215,7 @@ def login(
     data: LoginRequest,
     db: Session = Depends(get_db)
 ):
-    email = data.email.strip().lower()
+    email = str(data.email).strip().lower()
 
     user = (
         db.query(models.User)
@@ -254,7 +268,7 @@ def get_profile(
 
     try:
         user_id = int(x_user_id)
-    except ValueError:
+    except (ValueError, TypeError):
         raise HTTPException(
             status_code=400,
             detail="User ID tidak valid."
@@ -297,7 +311,7 @@ def update_profile(
 
     try:
         user_id = int(x_user_id)
-    except ValueError:
+    except (ValueError, TypeError):
         raise HTTPException(
             status_code=400,
             detail="User ID tidak valid."
@@ -316,12 +330,18 @@ def update_profile(
         )
 
     name = data.name.strip()
-    email = data.email.strip().lower()
+    email = str(data.email).strip().lower()
 
     if not name:
         raise HTTPException(
             status_code=400,
             detail="Nama wajib diisi."
+        )
+
+    if len(name) > 100:
+        raise HTTPException(
+            status_code=400,
+            detail="Nama terlalu panjang."
         )
 
     if data.password is not None:
@@ -357,8 +377,17 @@ def update_profile(
         if password:
             user.password = hash_password(password)
 
-    db.commit()
-    db.refresh(user)
+    try:
+        db.commit()
+        db.refresh(user)
+
+    except Exception:
+        db.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Profil gagal diperbarui."
+        )
 
     return {
         "message": "Profil berhasil diperbarui.",
@@ -386,7 +415,7 @@ def delete_profile(
 
     try:
         user_id = int(x_user_id)
-    except ValueError:
+    except (ValueError, TypeError):
         raise HTTPException(
             status_code=400,
             detail="User ID tidak valid."
@@ -419,6 +448,7 @@ def delete_profile(
 def expense_response(expense):
     return {
         "id": expense.id,
+        "user_id": expense.user_id,
         "title": expense.title,
         "amount": expense.amount,
         "category": expense.category,
@@ -444,10 +474,22 @@ def get_pengeluaran(
 
     try:
         user_id = int(x_user_id)
-    except ValueError:
+    except (ValueError, TypeError):
         raise HTTPException(
             status_code=400,
             detail="User ID tidak valid."
+        )
+
+    user = (
+        db.query(models.User)
+        .filter(models.User.id == user_id)
+        .first()
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User tidak ditemukan."
         )
 
     expenses = (
@@ -498,6 +540,12 @@ def create_pengeluaran(
             detail="Nominal harus lebih dari 0."
         )
 
+    if not data.category.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Kategori wajib diisi."
+        )
+
     expense = models.Expense(
         user_id=data.user_id,
         title=data.title.strip(),
@@ -512,8 +560,18 @@ def create_pengeluaran(
     )
 
     db.add(expense)
-    db.commit()
-    db.refresh(expense)
+
+    try:
+        db.commit()
+        db.refresh(expense)
+
+    except Exception:
+        db.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Pengeluaran gagal disimpan."
+        )
 
     return expense_response(expense)
 
@@ -556,6 +614,12 @@ def update_pengeluaran(
             detail="Nominal harus lebih dari 0."
         )
 
+    if not data.category.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Kategori wajib diisi."
+        )
+
     expense.title = data.title.strip()
     expense.amount = data.amount
     expense.category = data.category.strip()
@@ -566,8 +630,17 @@ def update_pengeluaran(
     )
     expense.date = data.date
 
-    db.commit()
-    db.refresh(expense)
+    try:
+        db.commit()
+        db.refresh(expense)
+
+    except Exception:
+        db.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Pengeluaran gagal diperbarui."
+        )
 
     return expense_response(expense)
 
@@ -589,7 +662,7 @@ def delete_pengeluaran(
 
     try:
         user_id = int(x_user_id)
-    except ValueError:
+    except (ValueError, TypeError):
         raise HTTPException(
             status_code=400,
             detail="User ID tidak valid."
@@ -633,6 +706,18 @@ def get_expenses(
     user_id: int,
     db: Session = Depends(get_db)
 ):
+    user = (
+        db.query(models.User)
+        .filter(models.User.id == user_id)
+        .first()
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User tidak ditemukan."
+        )
+
     expenses = (
         db.query(models.Expense)
         .filter(

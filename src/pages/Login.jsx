@@ -23,10 +23,6 @@ function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ==========================================
-  // INPUT HANDLER
-  // ==========================================
-
   const handleEmailChange = (e) => {
     setEmail(e.target.value);
   };
@@ -34,10 +30,6 @@ function Login() {
   const handlePasswordChange = (e) => {
     setPassword(e.target.value);
   };
-
-  // ==========================================
-  // LOGIN
-  // ==========================================
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -62,23 +54,40 @@ function Login() {
         password: passwordInput,
       });
 
-      // Pastikan response dari backend memiliki user
       const user = response.data?.user;
 
-      if (!user) {
+      if (!user || !user.id) {
         setError("Data pengguna tidak ditemukan.");
         return;
       }
 
       // ======================================
-      // SIMPAN DATA LOGIN
+      // BERSIHKAN DATA LOGIN LAMA
       // ======================================
 
-      localStorage.setItem("rincianLogin", "true");
+      localStorage.removeItem("rincianLogin");
+      localStorage.removeItem("rincianEmail");
+      localStorage.removeItem("rincianUser");
+      localStorage.removeItem("rincianUserId");
+
+      // ======================================
+      // SIMPAN AKUN YANG BARU LOGIN
+      // KHUSUS DI PERANGKAT INI
+      // ======================================
+
+      localStorage.setItem(
+        "rincianLogin",
+        "true"
+      );
 
       localStorage.setItem(
         "rincianEmail",
         user.email || emailInput
+      );
+
+      localStorage.setItem(
+        "rincianUserId",
+        String(user.id)
       );
 
       localStorage.setItem(
@@ -122,10 +131,6 @@ function Login() {
 
       <div className="auth-container">
 
-        {/* ======================================
-            BRAND
-        ====================================== */}
-
         <div className="auth-brand">
 
           <div className="brand-icon">
@@ -133,7 +138,6 @@ function Login() {
           </div>
 
           <div>
-
             <h4>
               Rincian
             </h4>
@@ -141,18 +145,11 @@ function Login() {
             <small>
               Kelola keuangan dengan lebih rapi.
             </small>
-
           </div>
 
         </div>
 
-        {/* ======================================
-            LOGIN CARD
-        ====================================== */}
-
         <div className="auth-card">
-
-          {/* HEADER */}
 
           <div className="auth-header">
 
@@ -171,8 +168,6 @@ function Login() {
 
           </div>
 
-          {/* ERROR */}
-
           {error && (
             <Alert
               variant="danger"
@@ -182,13 +177,7 @@ function Login() {
             </Alert>
           )}
 
-          {/* FORM */}
-
           <Form onSubmit={handleLogin}>
-
-            {/* ==================================
-                EMAIL
-            ================================== */}
 
             <Form.Group className="mb-3">
 
@@ -207,10 +196,6 @@ function Login() {
               />
 
             </Form.Group>
-
-            {/* ==================================
-                PASSWORD
-            ================================== */}
 
             <Form.Group className="mb-4">
 
@@ -250,22 +235,16 @@ function Login() {
                       : "Tampilkan password"
                   }
                 >
-
                   {showPassword ? (
                     <FiEye size={18} />
                   ) : (
                     <FiEyeOff size={18} />
                   )}
-
                 </Button>
 
               </InputGroup>
 
             </Form.Group>
-
-            {/* ==================================
-                TOMBOL MASUK
-            ================================== */}
 
             <Button
               type="submit"
@@ -285,15 +264,11 @@ function Login() {
 
           </Form>
 
-          {/* DIVIDER */}
-
           <div className="auth-divider">
             <span>
               atau
             </span>
           </div>
-
-          {/* REGISTER */}
 
           <p className="auth-footer">
 
@@ -306,10 +281,6 @@ function Login() {
           </p>
 
         </div>
-
-        {/* ======================================
-            FOOTER
-        ====================================== */}
 
         <p className="auth-copyright">
           © 2026 Rincian · Kelola lebih bijak
