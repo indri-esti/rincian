@@ -29,9 +29,43 @@ function Register() {
 
   const [error, setError] = useState("");
 
+  // ==========================================
+  // INPUT HANDLER
+  // ==========================================
+
+  const handleNameChange = (e) => {
+    setName(e.target.value);
+  };
+
+  const handleEmailChange = (e) => {
+    setEmail(e.target.value);
+  };
+
+  const handlePasswordChange = (e) => {
+    setPassword(e.target.value);
+  };
+
+  const handleConfirmPasswordChange = (e) => {
+    setConfirmPassword(e.target.value);
+  };
+
+  // ==========================================
+  // REGISTER
+  // ==========================================
+
   const handleRegister = async (e) => {
     e.preventDefault();
     setError("");
+
+    if (!name.trim()) {
+      setError("Nama wajib diisi.");
+      return;
+    }
+
+    if (!email.trim()) {
+      setError("Email wajib diisi.");
+      return;
+    }
 
     if (password.length < 8) {
       setError("Password minimal 8 karakter.");
@@ -53,8 +87,14 @@ function Register() {
       navigate("/login");
 
     } catch (error) {
+      console.error("Register error:", error);
+
       if (error.response?.data?.detail) {
         setError(error.response.data.detail);
+      } else if (error.response?.status === 404) {
+        setError("Endpoint register tidak ditemukan.");
+      } else if (error.response) {
+        setError("Registrasi gagal. Silakan coba lagi.");
       } else {
         setError(
           "Tidak dapat terhubung ke server."
@@ -66,68 +106,106 @@ function Register() {
   return (
     <div className="auth-page">
       <div className="auth-container">
+
         <div className="auth-brand">
-          <div className="brand-icon">R</div>
+
+          <div className="brand-icon">
+            R
+          </div>
 
           <div>
-            <h4>Rincian</h4>
-            <small>Kelola keuangan dengan lebih rapi.</small>
+            <h4>
+              Rincian
+            </h4>
+
+            <small>
+              Kelola keuangan dengan lebih rapi.
+            </small>
           </div>
+
         </div>
 
         <div className="auth-card">
-          <div className="auth-header">
-            <span className="auth-badge">Mulai sekarang ✨</span>
 
-            <h1>Buat akun</h1>
+          <div className="auth-header">
+
+            <span className="auth-badge">
+              Mulai sekarang ✨
+            </span>
+
+            <h1>
+              Buat akun
+            </h1>
 
             <p>
               Buat akun untuk mulai mencatat keuanganmu.
             </p>
+
           </div>
 
           {error && (
-            <Alert variant="danger" className="auth-alert">
+            <Alert
+              variant="danger"
+              className="auth-alert"
+            >
               {error}
             </Alert>
           )}
 
           <Form onSubmit={handleRegister}>
+
             <Form.Group className="mb-3">
-              <Form.Label>Nama</Form.Label>
+
+              <Form.Label>
+                Nama
+              </Form.Label>
 
               <Form.Control
                 type="text"
                 placeholder="Nama kamu"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={handleNameChange}
+                autoComplete="name"
                 required
               />
+
             </Form.Group>
 
             <Form.Group className="mb-3">
-              <Form.Label>Email</Form.Label>
+
+              <Form.Label>
+                Email
+              </Form.Label>
 
               <Form.Control
                 type="email"
                 placeholder="nama@email.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={handleEmailChange}
+                autoComplete="email"
                 required
               />
+
             </Form.Group>
 
             <Form.Group className="mb-3">
-              <Form.Label>Password</Form.Label>
+
+              <Form.Label>
+                Password
+              </Form.Label>
 
               <InputGroup>
+
                 <Form.Control
-                  type={showPassword ? "text" : "password"}
+                  type={
+                    showPassword
+                      ? "text"
+                      : "password"
+                  }
                   placeholder="Minimal 8 karakter"
                   value={password}
-                  onChange={(e) =>
-                    setPassword(e.target.value)
-                  }
+                  onChange={handlePasswordChange}
+                  autoComplete="new-password"
                   required
                 />
 
@@ -135,19 +213,33 @@ function Register() {
                   variant="outline-secondary"
                   type="button"
                   onClick={() =>
-                    setShowPassword(!showPassword)
+                    setShowPassword(
+                      (prev) => !prev
+                    )
                   }
                   className="password-toggle"
                 >
-                  {showPassword ? <FiEye /> : <FiEyeOff />}
+
+                  {showPassword ? (
+                    <FiEye />
+                  ) : (
+                    <FiEyeOff />
+                  )}
+
                 </Button>
+
               </InputGroup>
+
             </Form.Group>
 
             <Form.Group className="mb-4">
-              <Form.Label>Konfirmasi Password</Form.Label>
+
+              <Form.Label>
+                Konfirmasi Password
+              </Form.Label>
 
               <InputGroup>
+
                 <Form.Control
                   type={
                     showConfirmPassword
@@ -156,9 +248,8 @@ function Register() {
                   }
                   placeholder="Ulangi password"
                   value={confirmPassword}
-                  onChange={(e) =>
-                    setConfirmPassword(e.target.value)
-                  }
+                  onChange={handleConfirmPasswordChange}
+                  autoComplete="new-password"
                   required
                 />
 
@@ -167,42 +258,61 @@ function Register() {
                   type="button"
                   onClick={() =>
                     setShowConfirmPassword(
-                      !showConfirmPassword
+                      (prev) => !prev
                     )
                   }
                   className="password-toggle"
                 >
+
                   {showConfirmPassword ? (
                     <FiEye />
                   ) : (
                     <FiEyeOff />
                   )}
+
                 </Button>
+
               </InputGroup>
+
             </Form.Group>
 
             <Button
               type="submit"
               className="auth-button w-100"
             >
+
               <FiUserPlus size={18} />
-              Buat Akun
+
+              <span>
+                Buat Akun
+              </span>
+
             </Button>
+
           </Form>
 
           <div className="auth-divider">
-            <span>atau</span>
+            <span>
+              atau
+            </span>
           </div>
 
           <p className="auth-footer">
+
             Sudah punya akun?{" "}
-            <Link to="/login">Masuk di sini</Link>
+
+            <Link to="/login">
+              Masuk di sini
+            </Link>
+
           </p>
+
         </div>
 
         <p className="auth-copyright">
           © 2026 Rincian · Kelola lebih bijak
         </p>
+
       </div>
     </div>
   );

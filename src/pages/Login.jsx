@@ -24,6 +24,18 @@ function Login() {
   const [loading, setLoading] = useState(false);
 
   // ==========================================
+  // INPUT HANDLER
+  // ==========================================
+
+  const handleEmailChange = (e) => {
+    setEmail(e.target.value);
+  };
+
+  const handlePasswordChange = (e) => {
+    setPassword(e.target.value);
+  };
+
+  // ==========================================
   // LOGIN
   // ==========================================
 
@@ -188,9 +200,7 @@ function Login() {
                 type="email"
                 placeholder="nama@email.com"
                 value={email}
-                onChange={(e) =>
-                  setEmail(e.target.value)
-                }
+                onChange={handleEmailChange}
                 autoComplete="email"
                 disabled={loading}
                 required
@@ -218,9 +228,7 @@ function Login() {
                   }
                   placeholder="Masukkan password"
                   value={password}
-                  onChange={(e) =>
-                    setPassword(e.target.value)
-                  }
+                  onChange={handlePasswordChange}
                   autoComplete="current-password"
                   disabled={loading}
                   required
